@@ -1377,10 +1377,10 @@
 
         <label class="block text-sm mb-1">逆向产物输出目录</label>
         <div class="flex gap-2 mb-1">
-          <input id="sourceDirInput" class="flex-1 border rounded-lg px-3 py-2 text-sm font-mono" placeholder="留空 = 用户缓存目录（不放进 git 仓库）" />
+          <input id="sourceDirInput" class="flex-1 border rounded-lg px-3 py-2 text-sm font-mono" placeholder="留空 = 默认目录（桌面版：EXE 所在目录）" />
           <button onclick="locateSourceDir()" class="px-3 py-1.5 rounded-lg border text-sm whitespace-nowrap">设为输出目录</button>
         </div>
-        <p class="text-[11px] text-slate-400 mb-3">默认放在用户缓存目录，<b>不会</b>写进项目目录（避免被 git 跟踪）。</p>
+        <p class="text-[11px] text-slate-400 mb-3">默认放在程序自己的数据目录（桌面版为 EXE 所在目录，服务端为用户缓存目录），<b>不会</b>写进项目仓库（避免被 git 跟踪）。</p>
 
         <div id="unpackProgress" class="hidden mb-3">
           <div class="flex justify-between text-xs text-slate-500 mb-1">

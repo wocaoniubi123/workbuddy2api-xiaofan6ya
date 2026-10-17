@@ -86,6 +86,7 @@ import json
 import logging
 import os
 import re
+import sys
 import tempfile
 import threading
 import time
@@ -683,12 +684,13 @@ class _WorkBuddyInstall:
     def source_dir(self) -> Path:
         """抽取出来的源码（逆向产物）放哪里。
 
-        优先级：``WORKBUDDY_SOURCE_DIR`` > 后台覆盖 > 用户缓存目录下的
-        workbuddy2api/app_source。
+        优先级：``WORKBUDDY_SOURCE_DIR`` > 后台覆盖 > 默认目录。
 
         **默认不放在项目里**：解包产物有几十 MB，放进仓库会被 git 追着跑，
         也容易被误提交。放用户缓存目录（Windows `%LOCALAPPDATA%`、
         Linux `~/.cache`）既不污染仓库，又能跨进程复用。
+        Windows 桌面版（PyInstaller 冻结）例外：默认落到 EXE 所在目录的
+        ``app_source``，与数据库、日志同处一地，不在用户缓存目录留残渣。
         需要固定位置时用环境变量或后台设置指定即可（代码里不写死任何绝对路径）。
         """
         env = (os.getenv("WORKBUDDY_SOURCE_DIR") or "").strip()
@@ -703,6 +705,8 @@ class _WorkBuddyInstall:
                 return expand_path(ov)
             except Exception:
                 pass
+        if getattr(sys, "frozen", False):
+            return Path(sys.executable).resolve().parent / "app_source"
         for ev in ("LOCALAPPDATA", "XDG_CACHE_HOME"):
             base = os.getenv(ev)
             if base:

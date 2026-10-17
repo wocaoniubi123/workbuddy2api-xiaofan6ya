@@ -313,7 +313,7 @@ class DesktopAPI:
             deadline = time.monotonic() + 90
             while not self.closing.is_set() and time.monotonic() < deadline:
                 if self.process.poll() is not None:
-                    raise RuntimeError("本地服务启动失败，详细原因见用户目录 logs/backend.log")
+                    raise RuntimeError("本地服务启动失败，详细原因见程序目录 logs/backend.log")
                 try:
                     request = urllib.request.Request(f"http://127.0.0.1:{self.port}/api/app/desktop-ready",
                                                       headers={"X-Desktop-Boot": nonce})
@@ -566,7 +566,13 @@ def run(tray_mode: bool = False):
         raise RuntimeError("桌面 EXE 支持 Windows 10/11 x64")
     import msvcrt
     import webview
-    base = data_dir()
+    try:
+        base = data_dir()
+    except RuntimeError as exc:
+        # EXE 所在目录不可写时不回退到别处（数据必须与 EXE 同处），
+        # 但此时还没有任何日志可写，只能弹窗报错，不能静默退出。
+        ctypes.windll.user32.MessageBoxW(None, str(exc), "WorkBuddy2API", 16)
+        raise SystemExit(1) from exc
     # Use a per-user lock rather than a PID file (stale PID files cannot block startup).
     lock = (base / "desktop.lock").open("a+b")
     lock.seek(0)

@@ -101,6 +101,19 @@ workbuddy_admin.db
 workbuddy_admin.db-shm
 workbuddy_admin.db-wal
 
+# Desktop runtime data：桌面版把数据、日志、缓存都放在 EXE 所在目录，
+# 源码运行时该目录就是仓库根，避免本地跑一次就把运行时产物提交上去。
+/workbuddy.db
+/workbuddy.db-shm
+/workbuddy.db-wal
+/config.json
+/desktop.lock
+/releases-cache-*.json
+/webview/
+/runtime/
+/updates/
+/app_source/
+
 # Local credentials file
 登录密码.txt
 

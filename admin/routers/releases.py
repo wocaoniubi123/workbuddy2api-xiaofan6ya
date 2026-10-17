@@ -3,12 +3,13 @@ from functools import lru_cache
 import tempfile
 import os
 import secrets
+import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from admin.security import require_admin
-from desktop.common import ROOT, VERSION, RELEASES_URL
+from desktop.common import ROOT, VERSION, RELEASES_URL, data_dir
 
 router = APIRouter(prefix="/api/app", tags=["releases"])
 
@@ -60,7 +61,8 @@ def service():
             status_code=503,
             detail="检查更新不可用：缺少 packaging，请用运行服务的 Python 执行 python -m pip install -r requirements.txt",
         ) from exc
-    base = Path(tempfile.gettempdir()) / "workbuddy2api-releases"
+    # 桌面版与数据库、日志同处 EXE 所在目录；服务端（非冻结）仍用系统临时目录。
+    base = data_dir() if getattr(sys, "frozen", False) else Path(tempfile.gettempdir()) / "workbuddy2api-releases"
     base.mkdir(exist_ok=True)
     return UpdateService(base)
 

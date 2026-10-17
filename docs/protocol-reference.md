@@ -2435,6 +2435,8 @@ python wb_asar.py search "wbx_design" # 字节检索
 
 产物默认写到用户缓存目录（`%LOCALAPPDATA%\workbuddy2api\app_source` 或
 `~/.cache/...`）而**不是项目里** —— 200MB+ 放进仓库会被 git 追着跑。
+Windows 桌面版（打包 EXE）例外：默认写到 EXE 同级的 `app_source\`，
+与其他数据同处一地。
 需要固定位置时用 `WORKBUDDY_SOURCE_DIR` 指定。
 
 `wb_asar.py` 已把 asar 读取/抽取/检索全部收进来（纯标准库），
@@ -2542,7 +2544,7 @@ MySQL/Redis 连通性。
 | `WORKBUDDY_INSTALL_DIR` | 安装基目录（也接受 `resources/` 或 `app.asar`） | 自动扫描 |
 | `WORKBUDDY_ASAR_PATH` | 直接指定 `app.asar`（跳过扫描） | 自动扫描 |
 | `WORKBUDDY_DRIVES` | 参与扫描的盘符 | `C,D,E,F,G` |
-| `WORKBUDDY_SOURCE_DIR` | 逆向产物输出/查找目录 | 用户缓存目录 |
+| `WORKBUDDY_SOURCE_DIR` | 逆向产物输出/查找目录 | 用户缓存目录（桌面版 EXE：EXE 同级 `app_source\`） |
 | `ADMIN_DEV_TOOLS` | 后台「逆向产物」工具开关（生产设 0） | `1` |
 | `WORKBUDDY_DESKTOP_VERSION` / `WORKBUDDY_CLI_VERSION` | 强制覆盖版本 | 读安装包 |
 | `WORKBUDDY_USER_AGENT` | 强制覆盖整条 UA | 由版本号拼 |

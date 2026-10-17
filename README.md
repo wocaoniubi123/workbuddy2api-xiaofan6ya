@@ -555,7 +555,7 @@ CC Switch 中对应填写 Anthropic 服务地址、后台 API Key 和模型。�
 
 ## 日志与常见问题
 
-使用 `main.py` 时查看 `logs/`，Windows 版查看 `%LOCALAPPDATA%\WorkBuddy2API\logs/`，Docker 使用 `docker compose --env-file .env.docker logs --tail=100 admin`。用量日志可结合账号、模型、端点、耗时和错误码定位单次失败。
+使用 `main.py` 时查看 `logs/`，Windows 版查看 EXE 同级的 `logs/`，Docker 使用 `docker compose --env-file .env.docker logs --tail=100 admin`。用量日志可结合账号、模型、端点、耗时和错误码定位单次失败。
 
 | 现象 | 检查方向 |
 | --- | --- |

@@ -4086,7 +4086,7 @@ function keyRow(k) {
   return `
     <tr class="border-t hover:bg-slate-50">
       <td class="px-4 py-3">${esc(k.name||"未命名")}<div class="text-xs text-slate-400 mt-1">${k.account_id ? `独占账号：${esc(k.account_name || ("#" + k.account_id))}` : "公共账号池"}</div></td>
-      <td class="px-4 py-3 font-mono text-xs text-slate-500">${esc(k.masked)}</td>
+      <td class="px-4 py-3 font-mono text-xs text-slate-500"><span class="inline-flex items-center gap-1.5"><span>${esc(k.masked)}</span><button type="button" onclick="copyKeyInline(${k.id}, this)" class="text-slate-400 hover:text-slate-700 align-middle" title="复制完整 Key"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h11v11H9zM4 15H3V3h12v1"/></svg></button></span></td>
       <td class="px-4 py-3">${k.unlimited?"∞":k.credit_limit}</td>
       <td class="px-4 py-3 ${k.credit_used>=k.credit_limit&&!k.unlimited?'text-red-500':''}">${k.credit_used}</td>
       <td class="px-4 py-3" title="key 并发≠账号在途上限（ADMIN_POOL_MAX_IN_FLIGHT）">${k.max_concurrent===0?'不限':(k.max_concurrent==null?'全局':k.max_concurrent)}</td>
@@ -4242,6 +4242,23 @@ async function submitAddKey(){
       <div class="flex gap-2"><input id="newKey" readonly class="w-full border rounded-lg px-2 py-2 text-xs font-mono" value="${esc(d.key)}"><button onclick="copyText('#newKey')" class="px-3 bg-wb text-white rounded-lg text-sm">复制</button></div>
       <div class="flex justify-end mt-4"><button onclick="closeModal();loadKeys()" class="px-3 py-1.5 rounded-lg border text-sm">完成</button></div>`);
   } else { toast("创建失败：" + (d.detail || "未知错误"),"err"); }
+}
+/* 行内快速复制：把完整 Key 直接写进剪贴板，不弹窗 */
+async function copyKeyInline(id, btn){
+  try{
+    const r = await api("/api/keys/"+id+"/view");
+    const { ok, data:d } = await safeJson(r);
+    if(!ok){ toast(d.detail || "读取 Key 失败", "err"); return; }
+    const buffer = document.createElement('input');
+    buffer.type = 'text'; buffer.value = d.key; buffer.readOnly = true; buffer.id = '__wbKeyCopyBuf';
+    buffer.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+    document.body.appendChild(buffer);
+    const mark = btn.innerHTML;
+    try{ await copyText('#__wbKeyCopyBuf'); } finally { buffer.remove(); }
+    btn.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+    btn.classList.add('text-emerald-600');
+    setTimeout(()=>{ btn.innerHTML = mark; btn.classList.remove('text-emerald-600'); }, 1200);
+  }catch(e){ toast("复制失败：" + e.message, "err"); }
 }
 async function viewKeyFull(id, name){
   openModal(`<h3 class="font-bold mb-1"><i class="fa-solid fa-eye mr-1"></i> 查看 Key — ${esc(name)}</h3><p class="text-xs text-slate-400 mb-3">加载中...</p><div id="keyFullBody"></div>

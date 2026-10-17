@@ -165,7 +165,7 @@ workbuddy2api/
 
 ## Windows 与 Android
 
-从 [GitHub Releases](https://github.com/xiaofan6ya/workbuddy2api/releases) 下载对应平台安装包及 SHA256 校验文件。
+从 [GitHub Releases](https://github.com/wocaoniubi123/workbuddy2api-xiaofan6ya/releases) 下载对应平台安装包及 SHA256 校验文件。
 
 | 平台 | 使用方式 | 详细说明 |
 | --- | --- | --- |

@@ -611,14 +611,14 @@ def run(tray_mode: bool = False):
                           icon=str(ROOT / "desktop/assets/app.ico"))
             return
 
-        # Tray mode: no window, no services - both start from the tray menu.
-        # pywebview's GUI loop exits once every window is gone, so an invisible
-        # 1x1 host window keeps the process resident between console sessions.
+        # Tray mode: no visible window; services start on their own (开机自启要能直接跑，
+        # 不能只留图标等用户右键)。托盘菜单仍可停止/重启。pywebview's GUI loop exits
+        # once every window is gone, so an invisible 1x1 host window keeps the process resident.
         threading.Thread(target=api._state_monitor, name="tray-state", daemon=True).start()
         webview.create_window("__tray_host__", html="<!doctype html><title></title>",
                               width=1, height=1, frameless=True, hidden=True)
-        tray.notify("WorkBuddy2API 已在托盘运行，右键图标启动服务。")
-        webview.start(api.retry_runtime, gui="edgechromium",
+        tray.notify("WorkBuddy2API 已在托盘运行，正在启动本地服务…")
+        webview.start(lambda: (api.retry_runtime(), api.retry_start()), gui="edgechromium",
                       private_mode=False, storage_path=str(base / "webview"),
                       icon=str(ROOT / "desktop/assets/app.ico"))
     except Exception as exc:

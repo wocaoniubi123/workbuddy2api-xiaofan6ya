@@ -20,7 +20,7 @@ if __name__ == "__main__":
         os.environ["WB_DESKTOP_SMOKE"] = sys.argv[2]
         run()
     else:
-        # Double-clicking the EXE (or the autostart Run entry) should only drop a
-        # tray icon in place; services start from its menu. Pass --no-tray for the
-        # original single-window behaviour.
+        # Double-clicking the EXE (or the autostart Run entry) drops a tray icon and
+        # starts the backend right away, so 开机自启后无需再手动右键启动服务。
+        # Pass --no-tray for the original single-window behaviour.
         run(tray_mode="--no-tray" not in sys.argv)

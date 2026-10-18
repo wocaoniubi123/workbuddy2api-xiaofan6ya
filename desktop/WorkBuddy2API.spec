@@ -1,11 +1,14 @@
 # Run through scripts/build_desktop.py; only explicitly listed product assets are included.
 from pathlib import Path
 import json
+import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 root = Path(SPECPATH).parent
 version = json.loads((root / 'desktop/version.json').read_text(encoding='utf-8'))['version']
-name = f'WorkBuddy2API-{version}-windows-x64'
+# build_desktop.py --name overrides this; the default stays versioned so that
+# GitHub Releases assets keep matching desktop/updates.py asset_pattern.
+name = os.environ.get('WB_BUILD_NAME') or f'WorkBuddy2API-{version}-windows-x64'
 datas = [(str(root / 'admin/data'), 'admin/data'),
          (str(root / 'admin/static'), 'admin/static'),
          (str(root / 'turing_helper.js'), '.'),

@@ -89,6 +89,12 @@ desktop/assets/*.png
 !scripts/export_credential_key.py
 !scripts/asar_grep.py
 !scripts/asar_slice.py
+# 离线静态预览生成器：把面板页 + 真实数据打成单个可双击打开的 html，
+# 调样式/复现错位时不用起服务。不含任何凭证（运行时才去网关取）。
+!scripts/make_static_preview.py
+# Tailwind 预编译类检查器：vendor/tailwind 是静态产物，页面里用到但没编译的类
+# 会静默失效（实测踩过 ml-1.5 导致命中率紧贴数字）。纯静态检查，无敏感数据。
+!scripts/check_tailwind_classes.py
 android/.gradle/
 android/local.properties
 android/**/build/

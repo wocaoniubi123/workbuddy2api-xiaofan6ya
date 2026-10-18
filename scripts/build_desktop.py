@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dist-dir", default="dist", help="Output folder; useful while an older EXE is running")
+    parser.add_argument("--name", default="", help="Override the EXE base name (no extension); default keeps the versioned release name")
     args = parser.parse_args()
     destination = (ROOT / args.dist_dir).resolve()
     if sys.platform != "win32" or platform.machine().lower() not in ("amd64", "x86_64"):
@@ -46,12 +47,13 @@ def main():
         StringStruct('ProductName', 'WorkBuddy2API'),
         StringStruct('ProductVersion', '{version}')])]),
         VarFileInfo([VarStruct('Translation', [1033, 1200])])])'''
+    build_name = (args.name or f"WorkBuddy2API-{version}-windows-x64").strip()
     (ROOT / "build/version-resource.txt").write_text(resource, encoding="utf-8")
-    env = dict(os.environ, PYTHONUTF8="1")
+    env = dict(os.environ, PYTHONUTF8="1", WB_BUILD_NAME=build_name)
     subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
                     "--distpath", str(destination),
                     str(ROOT / "desktop/WorkBuddy2API.spec")], cwd=ROOT, env=env, check=True)
-    executable = destination / f"WorkBuddy2API-{version}-windows-x64.exe"
+    executable = destination / f"{build_name}.exe"
     digest = hashlib.sha256(executable.read_bytes()).hexdigest()
     executable.with_suffix(".exe.sha256").write_text(f"{digest}  {executable.name}\n", encoding="ascii")
     print(f"Built {executable} ({executable.stat().st_size / 1048576:.1f} MB)")

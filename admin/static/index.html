@@ -377,6 +377,15 @@
       text-align:left; padding:9px 14px; white-space:nowrap;
       position:sticky; top:0; z-index:1;
     }
+    /* 数字列表头必须跟数据一样右对齐。
+     *
+     * 这里以前只有上面那条 `text-align:left`，而模板里给 `<th class="text-right">`
+     * 已经写了右对齐 —— 但 `.tbl thead th`（特异性 0,1,2）压过了
+     * Tailwind 的 `.text-right`（0,1,0），于是**表头永远左对齐、数据右对齐**。
+     * 视觉后果：表头贴在列左边缘、数字贴在列右边缘，中间隔着一整列空白，
+     * 「失败」列的 0 和「积分」列的 29 还会在列边界处黏在一起，
+     * 看起来像「积分」下面有两个数。所以必须显式补一条更高特异性的规则。 */
+    .tbl thead th.text-right{ text-align:right; }
     .tbl tbody td{ padding:9px 14px; border-top:1px solid var(--border-soft); vertical-align:middle; }
     .tbl tbody tr:hover td{ background:rgba(15,23,42,.022); }
     :root[data-theme="dark"] .tbl tbody tr:hover td{ background:rgba(255,255,255,.035); }
@@ -588,21 +597,39 @@
 :root[data-theme="dark"] .acc-table tbody tr:hover td{ background:rgba(255,255,255,.035); }
 /* 名称列：**名字与 uid 同一行**。
  * 原来分两行（名字一行、uid 一行）把行高顶到 50px；
- * 合并后约 36px，一屏能多显示 4 行。uid 是次要信息，小字灰色跟在名字后面即可。 */
+ * 合并后约 36px，一屏能多显示 4 行。uid 是次要信息，小字灰色跟在名字后面即可。
+ *
+ * 对齐要点：名字宽度必须**固定**，否则 uid 的起点随名字长短漂移 ——
+ * 实测池里 name 从「余半」(2 字) 到「࿓Mr.|旭ོคิดถึง²⁰²⁶」(17 字) 混排，
+ * 只写 max-width 时短的贴左、长的顶满，右边 uid 一列参差不齐。
+ * 所以用 width（不是 max-width）钉死，超长再省略号。
+ *
+ * 列宽也要够：名字(140) + gap(6) + uid(92) = 238px 起步，
+ * 后面还有「自动任务已完成」这类小字。原来上限 230px 装不下，
+ * 会把小字压成单字（实测出现过 uid 只剩 1 个字符）。
+ *
+ * flex 收缩规则很关键：uid 必须 flex-shrink:0（它只有 92px，被压就没了），
+ * 长状态小字才是可以截断的那个 —— 让它 ellipsis，并靠 title 看全文。 */
 .acc-table .c-name{
-  max-width:230px; overflow:hidden;
+  max-width:420px; overflow:hidden;
 }
 .acc-table .c-name .nm{
   display:flex; align-items:baseline; gap:6px; min-width:0;
 }
 .acc-table .c-name .nm > b{
   font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  max-width:130px;
+  /* 固定宽度，不能用 max-width：那只是上限，短名字仍会把 uid 往前拽 */
+  width:140px; flex:0 0 140px;
+}
+/* 状态小字可截断，但不能把 uid 挤没 */
+.acc-table .c-name .nm > small{
+  flex:0 1 auto; min-width:0; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
 }
 .acc-table .c-uid{
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10px;
   color:var(--fg-subtle); overflow:hidden; text-overflow:ellipsis;
-  white-space:nowrap; max-width:92px;
+  white-space:nowrap; max-width:92px; flex:0 0 auto;
 }
 
 /* ==========================================================================
@@ -677,6 +704,15 @@
     }
     .chart-hit{ cursor:pointer; }
     .chart-hit:hover{ opacity:.85; }
+    /* 环形图图例：三张表共用同一套列宽。table-layout:fixed 让 colgroup 生效，
+       列宽不再随内容（「deepseek-v4.1-flash」vs「1」）漂移；
+       td 超宽用省略号，悬停 title 看全文。 */
+    .donut-legend{ width:100%; table-layout:fixed; border-collapse:collapse; }
+    .donut-legend th, .donut-legend td{
+      padding:2px 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .donut-legend td:first-child{ padding-left:0; }
+    .donut-legend td:last-child, .donut-legend th:last-child{ padding-right:0; }
     input,select,textarea{ outline:none; }
     input:focus,select:focus,textarea:focus{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
     /* Keep the upload dialog and its controls in the same document so cached desktop CSS cannot remove them. */
@@ -1589,11 +1625,25 @@ function fmtTime(s, withSec = true) {
   const out = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
   return withSec ? out + ":" + p(d.getUTCSeconds()) : out;
 }
-function fmtK(n) {
+/**
+ * 数字统一格式：Token / 请求数 / 其它计数共用这一份，别再分叉。
+ *
+ * 规则（用户指定）：
+ *   n >= 1e8  ->  (n / 1e8).toFixed(2) + "亿"   —— 亿以上保留两位小数
+ *   n <  1e8  ->  完整数字 + 千分位分隔符        —— 「该是多少就多少」
+ *
+ * 不用 K/M/B 这类英文单位：中文界面里读者要心算量级，容易看错。
+ * 例：225000000 -> "2.25亿"；39739201 -> "39,739,201"；168 -> "168"。
+ */
+function fmtNum(n) {
   n = Number(n) || 0;
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return String(n);
+  if (n >= 1e8) return (n / 1e8).toFixed(2) + "亿";
+  return Math.round(n).toLocaleString("en-US");
+}
+
+/** 历史名（Token 列沿用下来的调用点），与 fmtNum 同一实现，不要再分叉。 */
+function fmtK(n) {
+  return fmtNum(n);
 }
 
 let _localSessionPromise = null, _localSessionReady = false;
@@ -5477,11 +5527,40 @@ async function loadLogs(page) {
 
 /** 单条日志行（抽出来便于与汇总区共用配色）。 */
 function logRow(l) {
+  /* 缓存命中率 = cached_tokens / prompt_tokens。
+   *
+   * 为什么不是 cached / total：命中率问的是「这次喂进去的上下文有多少是命中缓存的」，
+   * 分母必须是**输入**（prompt），补全（completion）根本没走缓存。
+   * prompt 为 0 或缺失时不给百分比 —— 0/0 显示成 0% 会误导成「一次都没命中」。
+   * 超过 100% 的情况也存在（上游计费口径差异），这里**照实显示不截断**，
+   * 免得把上游异常藏起来。 */
+  const hitRate = (() => {
+    const p = Number(l.prompt_tokens) || 0;
+    const c = Number(l.cached_tokens) || 0;
+    if (p <= 0 || c <= 0) return null;
+    return (c / p) * 100;
+  })();
+  const hitHtml = hitRate == null
+    ? ''
+    : (() => {
+        /* 命中率越高越省，配色跟其它指标一致：绿=好 / 橙=一般 / 红=差。
+           分档按实际观感定：80% 以上说明上下文基本命中缓存，属于常态良好；
+           50% 以下说明每次都在重复读上下文，值得注意。 */
+        const color = hitRate >= 80 ? 'var(--ok)' : hitRate >= 50 ? '#d97706' : 'var(--danger)';
+        return `<span class="font-medium" style="color:${color}" title="缓存命中率 = 命中缓存的输入 token ÷ 输入 token">${hitRate.toFixed(1)}%</span>`;
+      })();
+  /* 缓存一行拆成两段：「缓存 token 数」和「命中率」用固定间距隔开。
+   *
+   * 两个间距都写成内联样式，**不用 Tailwind 的 ml-1.5 / mr-0.5** —— 它们不在
+   * vendor/tailwind/tailwind.min.css 这份预编译产物里，会静默失效，
+   * 结果就是「250,880命中 99.9%」黏成一坨（这是实际踩到的）。 */
+  const cacheLine = `<span><i class="fa-solid fa-memory text-[9px]" style="margin-right:3px"></i>${fmtK(l.cached_tokens||0)}</span>`
+    + (hitHtml ? `<span style="display:inline-block;margin-left:12px">命中 ${hitHtml}</span>` : '');
   const tokenHtml = (l.prompt_tokens!=null || l.completion_tokens!=null)
     ? `<div class="leading-tight text-[11px] tnum">
          <div><i class="fa-solid fa-arrow-down text-emerald-500 text-[10px]"></i> ${fmtK(l.prompt_tokens||0)}
-              <i class="fa-solid fa-arrow-up text-amber-500 text-[10px] ml-1"></i> ${fmtK(l.completion_tokens||0)}</div>
-         <div style="color:var(--fg-subtle)"><i class="fa-solid fa-memory text-[9px] mr-0.5"></i> ${fmtK(l.cached_tokens||0)}</div>
+              <i class="fa-solid fa-arrow-up text-amber-500 text-[10px]" style="margin-left:4px"></i> ${fmtK(l.completion_tokens||0)}</div>
+         <div style="color:var(--fg-subtle)">${cacheLine}</div>
        </div>`
     : `<span class="text-xs" style="color:var(--fg-subtle)">—</span>`;
   const credHtml = l.credits>0
@@ -5508,7 +5587,7 @@ function logRow(l) {
     <td class="text-xs whitespace-nowrap tnum" style="color:var(--fg-subtle)">${fmtTime(l.created_at)}</td>
     <td class="text-xs font-mono" title="${esc(l.key_name)}">${esc((l.key_name||'').slice(0,10))}</td>
     <td class="text-xs" title="${esc(l.account_name)}">${esc((l.account_name||'').slice(0,14))}</td>
-    <td class="font-mono text-[11px] whitespace-nowrap" title="${esc(l.model)}">${esc((l.model||'').slice(0,24))}<small class="block mt-1" style="color:var(--fg-muted)" title="客户端请求的思考强度；空值表示请求未指定或历史日志未记录">思考：${esc(l.reasoning_effort || '默认 / 未记录')}</small></td>
+    <td class="font-mono text-[11px] whitespace-nowrap" title="${esc(l.model)}">${esc((l.model||'').slice(0,24))}<small class="block mt-1 fs-11-5" style="color:var(--fg-muted)" title="客户端请求的思考强度；空值表示请求未指定或历史日志未记录">思考：${esc(l.reasoning_effort || '默认 / 未记录')}</small></td>
     <td>${tokenHtml}</td>
     <td class="text-xs text-right">${credHtml}</td>
     <td>${latencyHtml}</td>
@@ -5533,22 +5612,37 @@ async function loadLogSummary() {
     if (hint) hint.textContent = `近 ${data.range_days} 天 · ${items.length} 个账号 · 合计 ${fmtCredit(data.total_credits)} 积分`;
     if (!items.length) { box.innerHTML = `<div class="empty">该时间范围内没有账号产生请求。</div>`; return; }
     const maxC = Math.max(1, ...items.map(x => x.credits));
-    box.innerHTML = `<table class="tbl" style="min-width:820px">
+    /* 汇总口径的命中率：把该账号这段时间内所有请求的 cached / prompt 加起来再相除，
+       而不是「每次命中率求平均」—— 后者会让一次小请求的 100% 和一次大请求的 10%
+       等权，把整体拉高。分母用 prompt 同上（completion 不走缓存）。 */
+    const hitOf = x => {
+      const p = Number(x.prompt_tokens) || 0;
+      const c = Number(x.cached_tokens) || 0;
+      return (p > 0 && c > 0) ? (c / p) * 100 : null;
+    };
+    const hitColor = v => v >= 80 ? 'var(--ok)' : v >= 50 ? '#d97706' : 'var(--danger)';
+    box.innerHTML = `<table class="tbl" style="min-width:900px">
       <thead><tr>
         <th>账号</th><th class="text-right">请求数</th><th class="text-right">失败</th>
         <th class="text-right">积分</th><th class="text-right">Token</th>
+        <th class="text-right">缓存命中率</th>
         <th class="text-right">平均耗时</th><th>最近使用</th><th style="width:120px">积分占比</th>
-      </tr></thead><tbody>${items.map(x => `
+      </tr></thead><tbody>${items.map(x => {
+        const h = hitOf(x);
+        return `
         <tr>
           <td class="font-medium">${esc(x.account_name)}</td>
           <td class="text-right tnum">${fmtNum(x.requests)}</td>
           <td class="text-right tnum" style="color:${x.failed_requests > 0 ? 'var(--danger)' : 'var(--fg-subtle)'}">${x.failed_requests}</td>
           <td class="text-right tnum font-medium" style="color:var(--warn)">${fmtCredit(x.credits)}</td>
           <td class="text-right tnum" style="color:var(--fg-muted)">${fmtK(x.total_tokens)}</td>
+          <td class="text-right tnum font-medium" style="color:${h == null ? 'var(--fg-subtle)' : hitColor(h)}"
+              title="${h == null ? '该范围内没有可计算的输入 token' : `命中 ${fmtNum(x.cached_tokens)} / 输入 ${fmtNum(x.prompt_tokens)}`}">${h == null ? '—' : h.toFixed(1) + '%'}</td>
           <td class="text-right tnum" style="color:var(--fg-muted)">${x.avg_latency_ms ? (x.avg_latency_ms/1000).toFixed(2)+'s' : '—'}</td>
           <td class="text-xs" style="color:var(--fg-subtle)">${fmtTime(x.last_used_at, false)}</td>
           <td><div class="pkg-track" style="margin:0"><i style="width:${Math.max(2, x.credits/maxC*100)}%"></i></div></td>
-        </tr>`).join("")}</tbody></table>`;
+        </tr>`;
+      }).join("")}</tbody></table>`;
   } catch (e) {
     box.innerHTML = `<div class="empty">加载异常：${esc(String(e && e.message || e))}</div>`;
   }
@@ -5764,17 +5858,33 @@ async function deleteGroup(gid, name) {
 /* ==================== 使用记录统计 ==================== */
 const _PIE_COLORS = ["#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#ec4899","#84cc16"];
 
-function fmtNum(n) {
+/* 注意：`fmtNum` / `fmtCredit` 都定义在上面（组件区），**不要在这里再定义一次** ——
+ * 之前这里各有一份重复实现，因为声明在后，直接把上面那版覆盖掉，改上面的等于白改。
+ * 函数声明会提升，同名后者胜出，属于最难察觉的一类覆盖。 */
+
+/* 图表 Y 轴刻度专用：中文量级单位，省横向空间。
+ * 与 fmtNum 的区别是「读者不需要精确值」—— 刻度只用来读量级，
+ * 所以 875067 -> "87.8万"、225000000 -> "2.25亿"、1680 -> "1680"。
+ * 表格/卡片/tooltip 里的真实数值一律用 fmtNum，不要用这个。
+ *
+ * 两个细节都是为了不让刻度出现怪异字符串：
+ *  1. 末尾 ".0" 去掉：5250403 -> "525万" 而不是 "525.0万"
+ *  2. 先四舍五入再看是否够进位：99999999 若直接走「万」会渲染成
+ *     "10000.0万"，必须先判断进到「亿」那档，输出 "1.00亿"。
+ */
+function fmtAxis(n) {
   n = Number(n) || 0;
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  const abs = Math.abs(n);
+  const trim = s => s.replace(/\.0$/, "");
+  if (abs >= 1e8) return (n / 1e8).toFixed(2) + "亿";
+  if (abs >= 1e4) {
+    const wan = Number((n / 1e4).toFixed(1));
+    // 四舍五入后够 1e8 就走「亿」，避免 "10000.0万" 这种刻度
+    if (Math.abs(wan) >= 1e4) return (wan / 1e4).toFixed(2) + "亿";
+    return trim((n / 1e4).toFixed(1)) + "万";
+  }
   return String(Math.round(n));
 }
-/* 注意：`fmtCredit` 定义在上面（组件区），**不要在这里再定义一次** ——
- * 之前这里有一份 `return n.toFixed(2)` 的重复实现，因为声明在后，
- * 直接把上面那版覆盖掉，于是「积分不保留小数」的改动完全没生效。
- * 函数声明会提升，同名后者胜出，属于最难察觉的一类覆盖。 */
 
 /* 纯 SVG 环形图 + 图例表格（不引第三方图表库，保持单文件零依赖）
  * tooltip：原生 <title> 有 ~1s 延迟且样式不可控，故自绘跟随鼠标的浮层。
@@ -5804,14 +5914,14 @@ function donutChart(rows, valueKey, title) {
     const frac = total ? ((r[valueKey] || 0) / total * 100).toFixed(1) : "0.0";
     return `
     <tr class="border-t hover:bg-slate-50">
-      <td class="py-1.5 pr-2">
+      <td class="py-1.5" title="${esc(r.label)}">
         <span class="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style="background:${_PIE_COLORS[i % _PIE_COLORS.length]}"></span>
         <span class="text-xs">${esc(r.label)}</span>
       </td>
-      <td class="py-1.5 px-2 text-right text-xs text-slate-500">${fmtNum(r.requests)}</td>
-      <td class="py-1.5 px-2 text-right text-xs text-slate-500">${fmtNum(r.tokens)}</td>
-      <td class="py-1.5 px-2 text-right text-xs text-slate-400">${frac}%</td>
-      <td class="py-1.5 pl-2 text-right text-xs font-medium text-amber-600">${fmtCredit(r.credits)}</td>
+      <td class="py-1.5 text-right text-xs text-slate-500">${fmtNum(r.requests)}</td>
+      <td class="py-1.5 text-right text-xs text-slate-500" title="${fmtNum(r.tokens)}">${fmtNum(r.tokens)}</td>
+      <td class="py-1.5 text-right text-xs text-slate-400">${frac}%</td>
+      <td class="py-1.5 text-right text-xs font-medium text-amber-600">${fmtCredit(r.credits)}</td>
     </tr>`;
   }).join("");
 
@@ -5819,7 +5929,15 @@ function donutChart(rows, valueKey, title) {
     <div class="flex items-center gap-3">
       <svg viewBox="0 0 160 160" class="w-32 h-32 shrink-0">${arcs}</svg>
       <div class="flex-1 min-w-0 max-h-56 overflow-auto">
-        <table class="w-full">
+        <!-- 列宽必须固定：三张图（模型 / Key / 端点）各用一份独立表格，
+             若交给浏览器按内容自动分配，「deepseek-v4.1-flash」比「chat-completion」
+             宽、「1」又很窄，三张表的表头就会各走各的（实测名称列 208/80/190px），
+             并排看就是「字在飘」。用 colgroup + table-layout:fixed 钉死同一套比例。 -->
+        <table class="donut-legend">
+          <colgroup>
+            <col style="width:38%"><col style="width:14%"><col style="width:24%">
+            <col style="width:13%"><col style="width:11%">
+          </colgroup>
           <thead><tr class="text-[10px] text-slate-400">
             <th class="text-left font-normal pb-1">名称</th>
             <th class="text-right font-normal pb-1">请求</th>
@@ -5836,28 +5954,30 @@ function donutChart(rows, valueKey, title) {
 /* Token 趋势：输入/输出 双折线 + 面积；每个数据点可 hover 看当点明细 */
 function trendChart(rows) {
   if (!rows || !rows.length) return `<div class="text-xs text-slate-400 py-8 text-center">暂无数据</div>`;
-  const W = 560, H = 200, PAD = 34;
+  /* PAD_X 要给「2.25亿 / 2100.2万」这类刻度留出横向空间（9px 字体约 34px），
+   * 与纵向内边距分开 —— 原来共用一个 PAD，加大左边距会把绘图区压扁。 */
+  const W = 560, H = 200, PAD_X = 46, PAD_Y = 34;
   const n = rows.length;
   const maxV = Math.max(1, ...rows.map(r => Math.max(r.prompt_tokens, r.completion_tokens)));
-  const x = i => PAD + (n === 1 ? (W - PAD * 2) / 2 : (i * (W - PAD * 2)) / (n - 1));
-  const y = v => H - PAD - (v / maxV) * (H - PAD * 2);
+  const x = i => PAD_X + (n === 1 ? (W - PAD_X * 2) / 2 : (i * (W - PAD_X * 2)) / (n - 1));
+  const y = v => H - PAD_Y - (v / maxV) * (H - PAD_Y * 2);
 
   const line = (key, color) => {
     const pts = rows.map((r, i) => `${x(i)},${y(r[key])}`).join(" ");
-    const area = `${PAD},${H - PAD} ${pts} ${x(n - 1)},${H - PAD}`;
+    const area = `${PAD_X},${H - PAD_Y} ${pts} ${x(n - 1)},${H - PAD_Y}`;
     return `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" pointer-events="none"></polyline>
             <polygon points="${area}" fill="${color}" opacity="0.10" pointer-events="none"></polygon>`;
   };
 
   const grid = [0, 0.25, 0.5, 0.75, 1].map(f => {
     const v = maxV * f, yy = y(v);
-    return `<line x1="${PAD}" y1="${yy}" x2="${W - PAD}" y2="${yy}" stroke="#e2e8f0" stroke-width="1" pointer-events="none"></line>
-            <text x="${PAD - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="#94a3b8" pointer-events="none">${fmtNum(v)}</text>`;
+    return `<line x1="${PAD_X}" y1="${yy}" x2="${W - PAD_X}" y2="${yy}" stroke="#e2e8f0" stroke-width="1" pointer-events="none"></line>
+            <text x="${PAD_X - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="#94a3b8" pointer-events="none">${fmtAxis(v)}</text>`;
   }).join("");
 
   const step = Math.max(1, Math.ceil(n / 6));
   const xlabels = rows.map((r, i) => (i % step === 0 || i === n - 1)
-    ? `<text x="${x(i)}" y="${H - PAD + 14}" text-anchor="middle" font-size="9" fill="#94a3b8" pointer-events="none">${esc(String(r.bucket).slice(5))}</text>`
+    ? `<text x="${x(i)}" y="${H - PAD_Y + 14}" text-anchor="middle" font-size="9" fill="#94a3b8" pointer-events="none">${esc(String(r.bucket).slice(5))}</text>`
     : "").join("");
 
   // 每个点画一个透明的较大命中圆，便于悬停
@@ -5869,7 +5989,7 @@ function trendChart(rows) {
       <circle cx="${cx}" cy="${y(r.completion_tokens)}" r="2.5" fill="#22c55e" pointer-events="none"></circle>`;
     return `<g class="chart-hit" onmousemove="showTip(event, '${tip.replace(/'/g, "&#39;")}')" onmouseleave="hideTip()">
       ${dots}
-      <circle cx="${cx}" cy="${H / 2}" r="${Math.max(8, (W - PAD * 2) / Math.max(1, n) / 2)}" fill="transparent"></circle>
+      <circle cx="${cx}" cy="${H / 2}" r="${Math.max(8, (W - PAD_X * 2) / Math.max(1, n) / 2)}" fill="transparent"></circle>
     </g>`;
   }).join("");
 
